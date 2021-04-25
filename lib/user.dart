@@ -173,8 +173,9 @@ class _ProfilePageState extends State<ProfilePage> {
     grabbingContentOffset: GrabbingContentOffset.top,
   );
   final mid_snap = SnappingPosition.pixels(
-    positionPixels: 300,
+    positionPixels: 200,
     snappingCurve: Curves.elasticOut,
+    grabbingContentOffset: GrabbingContentOffset.bottom,
   );
   final top_snap = SnappingPosition.factor(
     positionFactor: 0.9,
@@ -183,27 +184,21 @@ class _ProfilePageState extends State<ProfilePage> {
   );
 
   Widget _buildProfile(AuthRepository auth) {
-
     return Container(
-        height: 200,
-        alignment: Alignment.topCenter,
-        padding: EdgeInsets.all(0),
+        alignment: Alignment.center,
         color: Colors.white,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            Container(
-                constraints: BoxConstraints(maxWidth: 50, maxHeight: 100),
-                width: 50,
-                height: 100,
-                child: Image.file(File(auth.photo!))),
-            Container(
-                width: 200,
-                height: 200,
-                child: ListView(
+           Flexible( fit:FlexFit.loose,
+               child: Container(
+                child: Image.file(File(auth.photo!)))),
+                Flexible(fit:FlexFit.loose,flex:2,
+                    child: Container(
+                child: ListView(shrinkWrap: true,
                   children: [
-                    Text(auth.user!.email!, style: biggerFont),
+                    Text(auth.user!.email! ,textAlign: TextAlign.center,style: biggerFont),
                     ElevatedButton(
                         onPressed: () async {
                           PickedFile? result = await ImagePicker()
@@ -217,8 +212,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           }
                         },
                         child: Text('Change avatar', style: biggerFont)),
-                  ],
-                ))
+                    ],
+                )))
           ],
         ));
   }
@@ -233,6 +228,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    var bottomHeight = MediaQuery.of(context).viewInsets.bottom;
     return Consumer<AuthRepository>(builder: (context, auth, _) {
       return auth.isAuthenticated
           ? Scaffold(
@@ -241,7 +237,7 @@ class _ProfilePageState extends State<ProfilePage> {
               grabbingHeight: 50,
               child: Stack(fit: StackFit.expand, children: [
                 RandomWords(),
-               // _snapController.currentlySnapping ? blur : no_blur,
+                //_snapController.currentPosition>0 ? blur : no_blur,
               ]),
               lockOverflowDrag: true,
               grabbing: Container(
@@ -261,13 +257,18 @@ class _ProfilePageState extends State<ProfilePage> {
                           Icon(Icons.keyboard_arrow_up),
                         ],
                       ))),
-              sheetBelow: SnappingSheetContent(
+              sheetBelow: SnappingSheetContent(sizeBehavior: SheetSizeStatic(height:bottomHeight),
                   draggable: true, child: _buildProfile(auth)),
               snappingPositions: [
                 bottom_snap,
                 mid_snap,
                 top_snap,
               ],
+                onSnapCompleted: (double d,SnappingPosition snap){
+                  if(d>200){
+                    _snapController.snapToPosition(mid_snap);
+                  }
+                },
             ))
           : RandomWords();
     });
