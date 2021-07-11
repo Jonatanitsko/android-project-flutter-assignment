@@ -19,6 +19,7 @@ class AuthRepository with ChangeNotifier {
   Status _status = Status.Uninitialized;
   List<WordPair> _wordpairList = <WordPair>[];
   String? _photo;
+  bool _fav_init=false;
 
   List<WordPair> get wordpair_list => _wordpairList;
 
@@ -34,10 +35,8 @@ class AuthRepository with ChangeNotifier {
   }
 
   AuthRepository.instance() : _auth = FirebaseAuth.instance {
-    _auth.signOut();
-    _auth.authStateChanges().listen(_onAuthStateChanged);
+     _auth.authStateChanges().listen(_onAuthStateChanged);
     _user = _auth.currentUser;
-    _photo=_user!.photoURL;
     _onAuthStateChanged(_user);
   }
 
@@ -52,7 +51,6 @@ class AuthRepository with ChangeNotifier {
   Future<UserCredential?> signUp(String email, String password) async {
     try {
       _status = Status.Authenticating;
-      notifyListeners();
       UserCredential user_res = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
       FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -60,6 +58,7 @@ class AuthRepository with ChangeNotifier {
           .collection("favorites")
           .doc(user!.email)
           .set({"list": []});
+      notifyListeners();
       return user_res;
     } catch (e) {
       print(e);
@@ -72,9 +71,10 @@ class AuthRepository with ChangeNotifier {
   Future<bool> signIn(String email, String password) async {
     try {
       _status = Status.Authenticating;
-      notifyListeners();
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       await getFav();
+      _photo=_user!.photoURL;
+      notifyListeners();
       return true;
     } catch (e) {
       print(e);
@@ -105,6 +105,7 @@ class AuthRepository with ChangeNotifier {
   Future<bool> getFav() async {
     try {
       if (!isAuthenticated) return false;
+
       FirebaseFirestore _firestore = FirebaseFirestore.instance;
       await _firestore
           .collection("favorites")
@@ -165,7 +166,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _snapController = SnappingSheetController();
+  SnappingSheetController snapController = SnappingSheetController();
   final bottom_snap = SnappingPosition.factor(
     positionFactor: 0.0,
     snappingCurve: Curves.easeOutExpo,
@@ -225,6 +226,14 @@ class _ProfilePageState extends State<ProfilePage> {
     child: Container(color: Colors.black.withOpacity(0)),
   );
 
+  _ProfilePageState():snapController=SnappingSheetController(){}
+
+  @override
+  void initState() {
+    snapController = SnappingSheetController();
+    to_blur=false;
+  }
+  bool to_blur=false;
 
   @override
   Widget build(BuildContext context) {
@@ -233,21 +242,23 @@ class _ProfilePageState extends State<ProfilePage> {
       return auth.isAuthenticated
           ? Scaffold(
               body: SnappingSheet(
-              controller: _snapController,
+                onSheetMoved:(num){
+                  setState(() {
+                    to_blur= num<=25 ? false : true;
+                  });
+              },
+              controller: snapController,
               grabbingHeight: 50,
-              child: Stack(fit: StackFit.expand, children: [
-                RandomWords(),
-                //_snapController.currentPosition>0 ? blur : no_blur,
-              ]),
+              child: SnappingSheetBody(),
               lockOverflowDrag: true,
               grabbing: Container(
                   color: Colors.grey,
                   child: GestureDetector(
                       onTap: () {
                         setState(() {
-                          _snapController.currentlySnapping
+                          snapController.currentlySnapping
                               ? null
-                              : _snapController.snapToPosition(bottom_snap);
+                              : snapController.snapToPosition(bottom_snap);
                         });
                       },
                       child: Row(
@@ -265,12 +276,22 @@ class _ProfilePageState extends State<ProfilePage> {
                 top_snap,
               ],
                 onSnapCompleted: (double d,SnappingPosition snap){
+                  print(d);
                   if(d>200){
-                    _snapController.snapToPosition(mid_snap);
+                    snapController.snapToPosition(mid_snap);
                   }
                 },
             ))
           : RandomWords();
     });
+  }
+
+  Widget SnappingSheetBody(){
+  //  print(snapController.currentPosition);
+    //print(mid_snap.grabbingContentOffset);
+    return Stack(fit: StackFit.expand, children: [
+      RandomWords(),
+      snapController.isAttached?  to_blur ? blur : no_blur:no_blur,
+    ]);
   }
 }
