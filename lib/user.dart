@@ -15,7 +15,6 @@ enum Status { Uninitialized, Authenticated, Authenticating, Unauthenticated }
 
 class AuthRepository with ChangeNotifier {
   FirebaseAuth _auth;
-  User? _user;
   Status _status = Status.Uninitialized;
   List<WordPair> _wordpairList = <WordPair>[];
   String? _photo;
@@ -36,15 +35,14 @@ class AuthRepository with ChangeNotifier {
 
   AuthRepository.instance() : _auth = FirebaseAuth.instance {
      _auth.authStateChanges().listen(_onAuthStateChanged);
-    _user = _auth.currentUser;
-    _onAuthStateChanged(_user);
+    _onAuthStateChanged(_auth.currentUser);
   }
 
   String? get photo=> _photo;
 
   Status get status => _status;
 
-  User? get user => _user;
+  User? get user => _auth.currentUser;
 
   bool get isAuthenticated => status == Status.Authenticated;
 
@@ -64,7 +62,7 @@ class AuthRepository with ChangeNotifier {
       print(e);
       _status = Status.Unauthenticated;
       notifyListeners();
-      return null;
+      throw(e);
     }
   }
 
@@ -73,7 +71,7 @@ class AuthRepository with ChangeNotifier {
       _status = Status.Authenticating;
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       await getFav();
-      _photo=_user!.photoURL;
+      _photo=_auth.currentUser!.photoURL;
       notifyListeners();
       return true;
     } catch (e) {
@@ -149,11 +147,9 @@ class AuthRepository with ChangeNotifier {
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     if (firebaseUser == null) {
-      _user = null;
       _status = Status.Unauthenticated;
     } else {
-      _user = firebaseUser;
-      _photo = _user!.photoURL;
+      _photo = _auth.currentUser!.photoURL;
       _status = Status.Authenticated;
     }
     notifyListeners();
@@ -185,16 +181,17 @@ class _ProfilePageState extends State<ProfilePage> {
   );
 
   Widget _buildProfile(AuthRepository auth) {
+    Widget img = auth.photo==null? Icon(Icons.no_photography_outlined) : Image.file(File(auth.photo!));
     return Container(
         alignment: Alignment.center,
         color: Colors.white,
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
            Flexible( fit:FlexFit.loose,
                child: Container(
-                child: Image.file(File(auth.photo!)))),
+                child:img)),
                 Flexible(fit:FlexFit.loose,flex:2,
                     child: Container(
                 child: ListView(shrinkWrap: true,
@@ -268,7 +265,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           Icon(Icons.keyboard_arrow_up),
                         ],
                       ))),
-              sheetBelow: SnappingSheetContent(sizeBehavior: SheetSizeStatic(height:bottomHeight),
+              sheetBelow: SnappingSheetContent(
                   draggable: true, child: _buildProfile(auth)),
               snappingPositions: [
                 bottom_snap,

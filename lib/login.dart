@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loadingin = false;
   bool _valid = true;
   bool user_in = false;
+  String error_msg = "";
 
   @override
   void dispose() {
@@ -26,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future _buildSignUp(AuthRepository auth) async {
     return showModalBottomSheet(
-        context: context,
+        context: this.context,
         builder: (BuildContext context) {
           return ListView(
             children: [
@@ -41,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     border: UnderlineInputBorder(),
                     labelText: 'Password',
-                    errorText: _valid ? null : 'Passwords mush match',
+                    errorText: _valid ? null : error_msg,
                   )),
               ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -49,22 +50,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       primary: Colors.green,
                       onPrimary: Colors.white),
                   onPressed: () async {
-                    _password.text == _passwordvalidation.text
-                        ? (await auth.signUp(_email.text, _password.text) !=
-                                null
-                            ? setState(() {
-                                user_in = true;
-                              })
-                            : setState(() {
-                                FocusScope.of(context).unfocus();
-                                const SnackBar(
-                                    content: Text(
-                                        'There was an error signing up into the app'));
-                              }))
-                        : setState(() {
-                            FocusScope.of(context).unfocus();
-                            _valid = false;
-                          });
+                    if (_password.text == _passwordvalidation.text) {
+                      try {
+                        await auth.signUp(_email.text, _password.text);
+                        setState(() {
+                          user_in = true;
+                        });
+                      } catch (e) {
+                        print(e.runtimeType);
+                        setState(() {
+                          _valid = false;
+                          FocusScope.of(context).unfocus();
+                          if(_password.text.length<6){
+                            error_msg="The password must be of length greater than 6 chars.";
+                          }else {
+                            error_msg = e.toString();
+                          }
+                        });
+                      }
+                    } else {
+                      setState(() {
+                        FocusScope.of(context).unfocus();
+                        _valid = false;
+                        error_msg = 'The passwords must match.';
+                      });
+                    }
                   },
                   child: Text('Confirm'))
             ],
@@ -75,7 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
 /**/
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Login'),
@@ -130,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             await auth.signIn(_email.text, _password.text)
                                 ? Navigator.pop(context)
                                 : ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
+                                    SnackBar(
                                         content: Text(
                                             'There was an error logging into the app')));
                           },
@@ -154,10 +163,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Text('New user? Click to sign up'),
                   onPressed: () async {
                     setState(() {
-                      _valid = true;
+                      if (_email.text.isEmpty) {
+                        _valid = false;
+                        error_msg =
+                            'In order to sign up, you must provide an email.';
+                      } else if (_password.text.isEmpty) {
+                        _valid = false;
+                        error_msg =
+                            'In order to sign up, you must provide a password.';
+                      } else {
+                        _valid = true;
+                      }
                     });
-                    await _buildSignUp(auth);
-                    Navigator.pop(context);
+                    if (_valid) {
+                      await _buildSignUp(auth);
+                      if (_valid) Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text(error_msg)));
+                    }
                   },
                 );
               }))
